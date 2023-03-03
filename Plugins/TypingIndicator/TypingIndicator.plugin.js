@@ -206,23 +206,34 @@ module.exports = (() => {
 					let req = webpackChunkdiscord_app.push([[dummyId], {}, req => req]);
 					window.req = req;
 					const ChannelItem = window.req.c[298586].exports;
+					
 					Patcher.after(ChannelItem, "Z", (_, [props], returnValue) => {
-						debugger;
+						
 						if(DiscordConstants.ChannelTypes[props.channel.type] != 'GUILD_TEXT') return;
-						if(props.selected) return;
+						// if(props.selected) return;
 						if(props.muted && !this.settings.includeMuted) return;
 						const selfId = UserStore.getCurrentUser()?.id;
 						if(!selfId) return setTimeout(()=>this.patchChannelList(), 100);
+						//Allows you to access info from the stores and will cause a rerender when the stores change
 						const fluxWrapper = Flux.connectStores([UserTypingStore, WindowInfo], ()=>({userIds: Object.keys(UserTypingStore.getTypingUsers(props.channel.id))
 							.filter(uId => (uId !== selfId) && (this.settings.includeBlocked || !RelationshipStore.isBlocked(uId)))
 						}));
+						//Code ran when the connected stores change
 						const wrappedCount = fluxWrapper(({userIds}) => {
+							console.log(userIds.length);
+							if(userIds.length != 0){
+								var audio = new Audio('https://oriath.net/Audio/Dialogue/NPC/SirusCombat/SI_14_1B.ogg');
+  								audio.play();
+							}
 							
 							return React.createElement(renderElement, {userIds, opacity: 0.7, type: "channel", isFocused: WindowInfo.isFocused(), id: props.channel.id});
 						});
 
 						const itemList = returnValue.props.children.props.children[1].props; 
+						
+						
 						if(itemList) itemList.children = [...(Array.isArray(itemList.children) ? itemList.children : [itemList.children]), React.createElement(wrappedCount)];
+						
 						
 					});
 				}
