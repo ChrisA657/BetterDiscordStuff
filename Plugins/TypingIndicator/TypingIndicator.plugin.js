@@ -93,13 +93,18 @@ module.exports = (() => {
 		stop(){}
 	} : (([Plugin, Api]) => {
 		const plugin = (Plugin, Api) => {
+			
 			const { WebpackModules, DiscordModules, Patcher, ReactComponents, PluginUtilities, Utilities, ReactTools, Logger } = Api;
-			const { React, ChannelStore, UserStore, UserTypingStore, RelationshipStore, SelectedGuildStore, DiscordConstants, WindowInfo } = DiscordModules;
-			const Flux = WebpackModules.getByProps("connectStores");
-			const FluxUtils = WebpackModules.getByProps("useStateFromStores");
-			const MutedStore = WebpackModules.getByProps("isMuted", "isChannelMuted");
-			const Spinner = WebpackModules.getByDisplayName("Spinner");
-			const Tooltip = WebpackModules.getByDisplayName("Tooltip");
+			const { React, ChannelStore, UserStore, UserTypingStore, RelationshipStore, SelectedGuildStore, WindowInfo } = DiscordModules;
+			const { Webpack } = new BdApi("TypingIndicator");
+			const Flux = WebpackModules.getModule(Webpack.Filters.byProps("connectStores"), { name: "Flux", fatal: true });
+			const FluxUtils = WebpackModules.getModule(Webpack.Filters.byProps("useStateFromStores"), {fatal: true });
+			const MutedStore = WebpackModules.getModule(Webpack.Filters.byProps("isMuted", "isChannelMuted"));
+			const Spinner = WebpackModules.getModule(m => m.Type?.PULSING_ELLIPSIS, { searchExports: true, feature: "Typing Indicators" })
+			const Tooltip = BdApi.Components.Tooltip;
+			const DiscordConstants = {
+				ChannelTypes: BdApi.Webpack.getModule(Webpack.Filters.byProps("GUILD_TEXT"),{searchExports:true})
+			};
 			
 			if(!BdApi.Plugins.get("BugReportHelper") && !BdApi.getData(config.info.name, "didShowIssueHelperPopup")){
 				BdApi.saveData(config.info.name, "didShowIssueHelperPopup", true);
@@ -177,9 +182,9 @@ module.exports = (() => {
 					`);
 					this.promises = {state:{cancelled: false}, cancel(){this.state.cancelled = true;}};
 					this.patchChannelList();
-					this.patchGuildList(this.promises.state);
-					this.patchHomeIcon(this.promises.state);
-					this.patchFolders(this.promises.state);
+					// this.patchGuildList(this.promises.state);
+					// this.patchHomeIcon(this.promises.state);
+					// this.patchFolders(this.promises.state);
 				}
 				onStop(){
 					PluginUtilities.removeStyle("typingindicator-css");
@@ -197,9 +202,13 @@ module.exports = (() => {
 				}
 				
 				patchChannelList(){
-					const ChannelItem = WebpackModules.getModule(m => Object(m.default).displayName==="ChannelItem");
-					Patcher.after(ChannelItem, "default", (_, [props], returnValue) => {
-						if(props.channel.type!==DiscordConstants.ChannelTypes.GUILD_TEXT) return;
+					let dummyId = "typingIndicatorDummy" + Math.floor(Math.random() * 10000000000000000);
+					let req = webpackChunkdiscord_app.push([[dummyId], {}, req => req]);
+					window.req = req;
+					const ChannelItem = window.req.c[298586].exports;
+					Patcher.after(ChannelItem, "Z", (_, [props], returnValue) => {
+						debugger;
+						if(DiscordConstants.ChannelTypes[props.channel.type] != 'GUILD_TEXT') return;
 						if(props.selected) return;
 						if(props.muted && !this.settings.includeMuted) return;
 						const selfId = UserStore.getCurrentUser()?.id;
@@ -208,10 +217,13 @@ module.exports = (() => {
 							.filter(uId => (uId !== selfId) && (this.settings.includeBlocked || !RelationshipStore.isBlocked(uId)))
 						}));
 						const wrappedCount = fluxWrapper(({userIds}) => {
+							
 							return React.createElement(renderElement, {userIds, opacity: 0.7, type: "channel", isFocused: WindowInfo.isFocused(), id: props.channel.id});
 						});
-						const itemList = Utilities.getNestedProp(returnValue, "props.children.props.children.1.props");
+
+						const itemList = returnValue.props.children.props.children[1].props; 
 						if(itemList) itemList.children = [...(Array.isArray(itemList.children) ? itemList.children : [itemList.children]), React.createElement(wrappedCount)];
+						
 					});
 				}
 				
